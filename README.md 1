@@ -1,0 +1,149 @@
+# GullyCoach
+### Building an affordable AI-powered cricket coaching system
+
+## Why I'm building this
+
+Cricket is probably one of the most popular sports in India, but access to proper coaching isn't equally available to everyone.
+
+A lot of young players practise in parks, streets, school grounds, or wherever they can find enough space. Having someone constantly analyze your batting technique isn't always possible.
+
+I started wondering whether I could use computer vision and inexpensive electronics to build something that could help.
+
+That's where **GullyCoach** comes in.
+
+My goal is to develop an affordable cricket coaching system that uses a camera to analyze batting movements and, eventually, a small sensor attached to the bat to collect additional information.
+
+I'm building this project independently while studying in Class 11. I'm learning a lot of the computer vision and hardware concepts as I go, so this repository will also document my experiments, mistakes, and improvements.
+
+## What does GullyCoach do right now?
+
+The current version is **V0.1.5**, an early computer-vision prototype written in Python.
+
+So far, I've implemented:
+
+- Live webcam capture using OpenCV
+- Full-body detection using MediaPipe Pose Landmarker
+- Visualization of 33 body landmarks and skeleton connections
+- Left and right knee-angle measurements
+- Exponential moving average (EMA) smoothing to reduce fluctuations
+- Handling for missing or low-visibility landmarks
+- Basic batting stance-width estimation using ankle separation
+- CSV logging for numerical evaluation
+
+The system currently displays the measurements on a live webcam feed.
+
+It is not yet a complete cricket coaching application. It cannot reliably identify cricket shots, evaluate complete batting technique, or give personalized coaching feedback.
+
+Those features are still in development.
+
+## How it works
+
+The current processing pipeline is:
+
+**Webcam → OpenCV → MediaPipe Pose → Landmark coordinates → Geometric calculations → Live display + CSV logging**
+
+MediaPipe estimates the positions of body joints. I then use their coordinates to calculate measurements such as knee angles and ankle separation.
+
+For a knee angle, I use the hip, knee, and ankle landmarks to calculate the angle between two vectors.
+
+For stance width, I calculate the distance between both ankles and divide it by the average estimated leg length in the image.
+
+This produces a relative ratio rather than a measurement in centimetres.
+
+One important limitation is that these are **2D image-based measurements**. Camera perspective, body orientation, and overlapping limbs can affect the results.
+
+## Development progress
+
+| Version | Feature | Status |
+|---|---|---|
+| V0.1.1 | Webcam capture | Completed |
+| V0.1.2 | Body landmark detection | Completed |
+| V0.1.3 | Skeleton visualization | Completed |
+| V0.1.4 | Knee-angle measurement | Completed |
+| V0.1.4.2 | Manual and video validation | Completed |
+| V0.1.4.3 | Knee landmark diagnostics | Completed |
+| V0.1.4.4 | Knee-angle smoothing and CSV logging | Implemented and initially tested |
+| V0.1.5 | Stance-width estimation | Implemented; validation ongoing |
+
+These early milestones were developed before I organized the GitHub repository. They are documented retrospectively rather than represented as commits made at the time.
+
+## Testing and experiments
+
+I didn't want to stop at just displaying numbers on a screen. I wanted to know whether those numbers were actually useful.
+
+For knee-angle validation, I compared MediaPipe's measurements with angles calculated from manually selected landmarks in video frames.
+
+Across five manually annotated frames, the mean absolute difference was approximately **3.18°**.
+
+This does not mean GullyCoach measures the actual anatomical knee angle with an error of only 3.18°. It means the two methods gave similar projected 2D angles on those selected frames.
+
+I also investigated a possible knee-tracking issue during a squat. One knee became harder for MediaPipe to detect, and the diagnostic did not establish whether a landmark identity swap had occurred.
+
+Later, I introduced EMA smoothing with a factor of 0.3 and compared raw and smoothed measurements across a recorded test session.
+
+The filtered values showed smaller frame-to-frame changes, although smoothing also introduces some delay.
+
+The biggest issue right now is still tracking reliability when joints become hidden or the camera angle changes.
+
+More details are available in [Validation Results](docs/validation_results.md).
+
+## Running the prototype
+
+**Requirements:** Python, a webcam, and the packages listed in `requirements.txt`.
+
+Install the dependencies:
+
+```bash
+python -m pip install -r requirements.txt
+```
+
+Download the MediaPipe Pose Landmarker Lite model from the official MediaPipe documentation and place it in the project folder under this filename:
+
+`pose_landmarker_lite.task`
+
+Run the application:
+
+```bash
+python body_tracking.py
+```
+
+Press **Q** to exit.
+
+The application saves measurements to `gullycoach_measurements.csv`.
+
+## What I'm planning next
+
+My long-term goal is to make GullyCoach a usable cricket coaching product, not just a pose-tracking experiment.
+
+The main features I want to develop are:
+
+1. Better foot placement and batting stance analysis
+2. Batting movement and shot recognition
+3. Feedback about basic batting technique
+4. An ESP32-based smart bat sensor using an IMU
+5. Combining camera and bat-sensor measurements
+6. A player dashboard to track improvement
+7. Testing with actual aspiring cricketers
+
+I'm aiming to complete and test a working first version by **August 2027**.
+
+## Current limitations
+
+There are several problems I still need to work on.
+
+- Some body landmarks become unreliable when limbs overlap.
+- The results depend on camera positioning and lighting.
+- The current measurements are based on 2D projections.
+- Smoothing reduces fluctuations but can delay responses.
+- The system has not yet been validated on a large group of cricket players.
+- The current stance ratio is a geometric measurement, not a judgment about whether someone's stance is correct.
+
+I want to keep documenting these issues rather than presenting every feature as completely solved.
+
+## Why this repository exists
+
+I'm using GitHub to document how this project develops, including the code, tests, failed experiments, and changes I make along the way.
+
+Hopefully, by the time GullyCoach reaches its first complete version, this repository will show not just what I built, but how I figured things out.
+
+**Current version: V0.1.5 — Computer Vision Prototype**
