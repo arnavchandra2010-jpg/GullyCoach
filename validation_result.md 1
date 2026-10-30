@@ -1,0 +1,227 @@
+# GullyCoach — Validation Results
+
+## Why I'm documenting this
+
+When I first got MediaPipe working, seeing a skeleton move with my body was pretty exciting.
+
+But I soon realized that just because the program displays an angle doesn't mean the angle is correct.
+
+I decided to run a few experiments to understand how accurate and stable the measurements were, and where the tracking system was struggling.
+
+This document contains the results from the initial development of GullyCoach, up to V0.1.5.
+
+---
+
+## Experiment 1 — Knee-angle calculation
+
+**Objective:** Check whether GullyCoach can calculate reasonable knee angles from body landmarks.
+
+### Method
+
+I used a recorded video of myself performing a squat.
+
+MediaPipe estimated the hip, knee, and ankle positions, and I calculated the angle at the knee using vector geometry.
+
+The video contained approximately 293 frames at roughly 24 FPS.
+
+### Results
+
+The right-knee measurement changed from approximately 176° while standing to around 30° during the deepest part of the squat, before returning to approximately 174°.
+
+The overall movement was captured, but landmark detection wasn't equally reliable for both legs.
+
+| Measurement | Result |
+|---|---:|
+| Total frames | ~293 |
+| Valid right-knee frames | 208 |
+| Valid left-knee frames | 20 |
+| Right-knee detection rate | ~71% |
+| Left-knee detection rate | ~6.8% |
+
+### What I learned
+
+The system could capture the general bending movement, but some joints were much harder to track.
+
+The camera angle and overlapping legs appeared to be important factors.
+
+This experiment showed that getting a plausible angle is only one part of the problem. Reliable landmark detection matters just as much.
+
+---
+
+## Experiment 2 — Comparing automatic and manual measurements
+
+**Objective:** Compare MediaPipe's knee-angle measurements with angles calculated using manually selected joint positions.
+
+### Method
+
+I selected five frames from the squat video.
+
+For each frame, I manually marked the hip, knee, and ankle, then calculated a knee angle from those points.
+
+I compared these angles with GullyCoach's right-knee measurements.
+
+### Results
+
+| Frame | Manual angle | GullyCoach angle | Absolute difference |
+|---|---:|---:|---:|
+| 39 | 176.76° | 174.96° | 1.81° |
+| 63 | 131.62° | 133.95° | 2.33° |
+| 87 | 53.05° | 48.91° | 4.13° |
+| 121 | 28.00° | 31.89° | 3.89° |
+| 207 | 170.26° | 174.01° | 3.75° |
+
+**Mean absolute difference: approximately 3.18°.**
+
+### What I learned
+
+The automatic measurements were reasonably close to my manually annotated 2D measurements in these five frames.
+
+However, this was not a proper ground-truth accuracy study.
+
+Manual annotation can introduce errors, and both methods measure angles projected onto a 2D image rather than actual anatomical joint angles.
+
+Five selected frames are also far too few to establish general accuracy.
+
+One interesting result was frame 121. The estimated knee position appeared noticeably displaced from my manually selected knee position, even though the calculated angles were relatively close.
+
+That made me investigate whether MediaPipe was confusing the left and right knees.
+
+---
+
+## Experiment 3 — Investigating knee landmark stability
+
+**Objective:** Investigate possible landmark jumps or left/right knee identity confusion during the squat.
+
+### Method
+
+I analyzed frames 105–140 and tracked both knee landmarks.
+
+The diagnostic recorded:
+
+- Knee coordinates
+- Landmark visibility
+- Movement between consecutive frames
+- Suspicious movement flags
+- Possible identity-swap warnings
+
+### Results
+
+| Measurement | Left knee | Right knee |
+|---|---:|---:|
+| Frames with usable knee position | 18/36 | 36/36 |
+| Mean landmark visibility | ~0.61 | ~0.98 |
+| Suspicious jump warnings | 0 | 0 |
+
+The diagnostic produced no identity-swap warnings.
+
+However, the left knee was below the visibility threshold for approximately half the frames.
+
+### What I learned
+
+The results did not confirm that MediaPipe was swapping the knees.
+
+They also did not rule it out.
+
+Because one knee was frequently unavailable, the diagnostic couldn't reliably compare both knee trajectories during the entire sequence.
+
+I also learned that stable landmark movement doesn't necessarily mean a landmark is correctly positioned. An incorrectly placed landmark can remain in roughly the same wrong location for several frames.
+
+---
+
+## Experiment 4 — Knee-angle smoothing
+
+**Objective:** Reduce frame-to-frame fluctuations without losing the general motion of the knee.
+
+### Method
+
+I implemented exponential moving average smoothing:
+
+**Smoothed angle = 0.3 × current angle + 0.7 × previous smoothed angle**
+
+I recorded both raw and smoothed measurements during a webcam session.
+
+The CSV contained 1,374 rows, covering approximately 47.6 seconds.
+
+### Results
+
+| Measurement | Raw | Smoothed | Reduction |
+|---|---:|---:|---:|
+| Left knee median frame change | 1.88° | 0.75° | ~60.0% |
+| Right knee median frame change | 1.45° | 0.76° | ~47.4% |
+| Left knee 95th-percentile change | 10.88° | 5.18° | ~52.4% |
+| Right knee 95th-percentile change | 9.50° | 4.27° | ~55.1% |
+
+These results compare changes between consecutive valid measurements.
+
+### Tracking availability
+
+| Measurement | Left knee | Right knee |
+|---|---:|---:|
+| Valid measurements | 1,092 | 704 |
+| Detection rate | 79.5% | 51.2% |
+
+### What I learned
+
+The EMA filter reduced frame-to-frame changes, which made the displayed readings less jumpy.
+
+However, the recorded session included actual movement. That means I can't interpret the entire reduction as an improvement in stationary measurement noise.
+
+Smoothing also creates a delay between the raw and filtered angle. Large changes in body position can temporarily produce noticeable differences between the two readings.
+
+I decided to keep the smoothing factor at 0.3 for the current prototype rather than claim it was fully optimized.
+
+The main issue is still unreliable detection during some movements.
+
+---
+
+## Experiment 5 — Stance-width measurement
+
+**Status: Initial functionality test completed; numerical validation pending.**
+
+### Objective
+
+Estimate relative ankle separation while standing in different positions.
+
+### Method
+
+I calculated the distance between the left and right ankle landmarks and normalized it using the average estimated leg length in the image.
+
+The program displays the ratio and draws a line between the ankles.
+
+### Initial observations
+
+The live measurement responded to changes in leg positioning.
+
+Some example ratios visible in my test recording were approximately 0.36, 0.59, 0.08, and 0.21.
+
+The ratio was unavailable when one or more required landmarks failed the visibility check.
+
+### Limitations
+
+The stance ratio changes with projected ankle separation, but it can also be affected by body orientation and camera perspective.
+
+The values haven't yet been compared against controlled reference measurements.
+
+For now, the program estimates relative stance width. It does not determine whether a cricket batting stance is technically good or bad.
+
+### Next validation steps
+
+I plan to measure stance width under more controlled conditions by keeping the camera fixed and testing several known foot separations.
+
+I also want to investigate whether using foot landmarks instead of only ankles produces more useful batting measurements.
+
+---
+
+## Overall findings
+
+So far, I've learned that building a functioning pose-tracking system is much easier than proving that its measurements are reliable.
+
+The current prototype can detect body landmarks, calculate knee angles, smooth measurements, and estimate stance width.
+
+The main problems still involve landmark visibility, overlapping limbs, camera perspective, and measurement validation.
+
+My next goal is to make the system useful for actual cricket movements rather than just general standing and squatting.
+
+These experiments are early development tests, not proof that GullyCoach is ready for real-world coaching.
+
+I'll continue updating this document as I test more features and collect better evidence.
